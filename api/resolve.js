@@ -1,6 +1,11 @@
 const RENDER_ORIGIN = 'https://hpy-chry-go-lucki.onrender.com';
 
 module.exports = async function handler(request, response) {
+  const origin = request.headers.origin;
+  if (origin === 'https://hpy-chry-go-lucki.onrender.com' || origin === 'http://localhost') {
+    response.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  if (request.method === 'OPTIONS') return response.status(204).end();
   if (request.method !== 'GET') {
     response.setHeader('Allow', 'GET');
     return response.status(405).json({ error: 'Method not allowed.' });

@@ -7,6 +7,14 @@ const ffmpegPath = require('ffmpeg-static');
 const RENDER_ORIGIN = 'https://hpy-chry-go-lucki.onrender.com';
 const WATERMARK_URL = `${RENDER_ORIGIN}/img/watermark.png`;
 
+function allowMainSite(response, request) {
+  const origin = request.headers.origin;
+  if (origin === 'https://hpy-chry-go-lucki.onrender.com' || origin === 'http://localhost') {
+    response.setHeader('Access-Control-Allow-Origin', origin);
+    response.setHeader('Access-Control-Expose-Headers', 'Content-Length, Content-Disposition');
+  }
+}
+
 function getViewkey(input) {
   try {
     const url = new URL(input);
@@ -21,6 +29,8 @@ function safePart(value, fallback) {
 }
 
 module.exports = async function handler(request, response) {
+  allowMainSite(response, request);
+  if (request.method === 'OPTIONS') return response.status(204).end();
   if (request.method !== 'GET') {
     response.setHeader('Allow', 'GET');
     return response.status(405).send('Method not allowed.');
