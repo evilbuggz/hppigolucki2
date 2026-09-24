@@ -1,0 +1,12 @@
+{
+  "functions": {
+    "api/download.js": {
+      "maxDuration": 60,
+      "memory": 1024
+    },
+    "api/resolve.js": {
+      "maxDuration": 30,
+      "memory": 512
+    }
+  }
+}

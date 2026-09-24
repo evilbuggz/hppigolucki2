@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="https://hpy-chry-go-lucki.onrender.com/img/icon.png">
+  <title>Peachy watermark studio</title>
+  <style>
+    @font-face { font-family: Mochi; src: url('https://hpy-chry-go-lucki.onrender.com/files/mochi.ttf') format('truetype'); font-display: swap; }
+    @font-face { font-family: Quilt; src: url('https://hpy-chry-go-lucki.onrender.com/files/qilt.otf') format('opentype'); font-display: swap; }
+    :root { --coral:#fc8358; --peach:#ffa17f; --blush:#ffe2d8; --orange:#ef6330; --sienna:#6b311c; --brown:#351b12; --paper:#fffaf7; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; padding: 24px; color: var(--sienna); background: var(--blush); font: 16px/1.35 Quilt, Georgia, serif; }
+    body::before { content: ""; position: fixed; inset: 0 0 auto; height: 10px; background: var(--brown); }
+    main { width: min(100%, 700px); margin: 12vh auto 24px; padding: clamp(24px, 5vw, 48px); border: 2px solid var(--sienna); border-radius: 18px; background: var(--paper); box-shadow: 11px 11px 0 var(--sienna); }
+    .brand { display: block; width: min(210px, 48vw); margin: 0 0 20px; }
+    h1, label { font-family: Mochi, Quilt, Georgia, serif; }
+    h1 { margin: 0 0 7px; color: var(--brown); font-size: clamp(31px, 6vw, 52px); line-height: 1; }
+    p { margin: 7px 0 17px; }
+    .field { display: grid; gap: 6px; margin: 15px 0; }
+    label { color: var(--brown); font-weight: 700; }
+    input, select, button { min-height: 44px; border: 2px solid var(--sienna); border-radius: 9px; padding: 0 13px; color: var(--sienna); background: #fff; font: inherit; }
+    input { width: 100%; }
+    button { color: var(--brown); border-color: var(--brown); background: var(--coral); cursor: pointer; font-weight: 700; }
+    button:hover { background: var(--orange); }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+    .actions button { flex: 1 1 190px; }
+    #status { min-height: 22px; margin: 17px 0 0; color: var(--orange); font-weight: 700; }
+    .progress { display: none; gap: 7px; margin-top: 10px; }
+    .progress.visible { display: grid; }
+    .track { height: 10px; overflow: hidden; border: 2px solid var(--sienna); border-radius: 99px; background: var(--blush); }
+    .bar { width: 0; height: 100%; background: var(--coral); transition: width .2s ease; }
+    .indeterminate .bar { width: 38%; animation: slide 1.2s ease-in-out infinite alternate; }
+    .progress small { color: var(--sienna); }
+    @keyframes slide { from { transform: translateX(-105%); } to { transform: translateX(270%); } }
+    @media (max-width: 600px) { body { padding: 18px; } main { margin-top: 9vh; box-shadow: 7px 7px 0 var(--sienna); } .actions button { flex-basis: 100%; } }
+  </style>
+</head>
+<body>
+  <main>
+    <img class="brand" src="https://hpy-chry-go-lucki.onrender.com/img/title.png" alt="Peachy">
+    <h1>Download a video</h1>
+    <p>Paste a video link or viewkey, choose a quality, and add a small Peachy watermark.</p>
+    <div class="field"><label for="video">Video URL or viewkey</label><input id="video" placeholder="https://www.pornhub.com/view_video.php?viewkey=..." autocomplete="url"></div>
+    <div class="field"><label for="quality">Quality</label><select id="quality" disabled><option>Choose a video first</option></select></div>
+    <div class="actions"><button id="load" type="button">Load video</button><button id="download" type="button" disabled>Download video</button></div>
+    <p id="status" role="status" aria-live="polite">Waiting for a video link.</p>
+    <div id="progress" class="progress"><div class="track"><div id="bar" class="bar"></div></div><small id="progress-text">Preparing download...</small></div>
+  </main>
+  <script>
+    const video = document.querySelector('#video');
+    const quality = document.querySelector('#quality');
+    const load = document.querySelector('#load');
+    const download = document.querySelector('#download');
+    const status = document.querySelector('#status');
+    const progress = document.querySelector('#progress');
+    const bar = document.querySelector('#bar');
+    const progressText = document.querySelector('#progress-text');
+    let sources = [];
+    let timer;
+
+    const setStatus = (message) => { status.textContent = message; };
+    const resetProgress = () => { clearInterval(timer); progress.className = 'progress'; bar.style.width = '0%'; };
+    const startProgress = () => {
+      const started = Date.now();
+      progress.className = 'progress visible indeterminate';
+      progressText.textContent = 'Preparing download...';
+      timer = setInterval(() => { const seconds = Math.floor((Date.now() - started) / 1000); progressText.textContent = `Preparing download... ${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, '0')}s`; }, 1000);
+    };
+    const viewkey = (input) => { try { const url = new URL(input); return url.searchParams.get('viewkey') || url.pathname.split('/').filter(Boolean).pop() || 'video'; } catch { return input; } };
+
+    async function loadVideo() {
+      const input = video.value.trim();
+      if (!input) { setStatus('Paste a video URL or viewkey first.'); video.focus(); return; }
+      load.disabled = true; download.disabled = true; setStatus('Getting your video ready...'); resetProgress();
+      try {
+        const response = await fetch(`/api/resolve?url=${encodeURIComponent(input)}`, { cache: 'no-store' });
+        const result = await response.json();
+        if (!response.ok || result.error) throw new Error(result.error || `Could not load video (${response.status}).`);
+        sources = result.sources.filter((source) => source.format === 'mp4').sort((a, b) => Number(b.quality) - Number(a.quality));
+        quality.replaceChildren(...sources.map((source, index) => new Option(`${source.quality}p MP4`, String(index))));
+        quality.disabled = sources.length === 0; download.disabled = sources.length === 0;
+        setStatus(`${sources.length} quality options ready.`);
+      } catch (error) { setStatus(`${error.message} Please try again.`); }
+      finally { load.disabled = false; }
+    }
+
+    async function downloadVideo() {
+      const source = sources[Number(quality.value)];
+      if (!source) return;
+      const input = video.value.trim();
+      download.disabled = true; load.disabled = true; setStatus('Your download is processing!'); startProgress();
+      try {
+        const query = new URLSearchParams({ url: input, quality: source.quality });
+        const response = await fetch(`/api/download?${query}`, { cache: 'no-store' });
+        if (!response.ok || !response.body) throw new Error(`Download failed (${response.status}).`);
+        clearInterval(timer); progress.classList.remove('indeterminate'); progressText.textContent = 'Transferring your video...';
+        const total = Number(response.headers.get('content-length')); const reader = response.body.getReader(); const chunks = []; let received = 0;
+        while (true) { const part = await reader.read(); if (part.done) break; chunks.push(part.value); received += part.value.byteLength; if (total) { const percent = Math.round(received / total * 100); bar.style.width = `${percent}%`; progressText.textContent = `Transferring your video... ${percent}%`; } }
+        const blobUrl = URL.createObjectURL(new Blob(chunks, { type: 'video/mp4' })); const link = document.createElement('a'); link.href = blobUrl; link.download = `${source.quality}ph-${viewkey(input)}.mp4`; link.click(); setTimeout(() => URL.revokeObjectURL(blobUrl), 1000); bar.style.width = '100%'; progressText.textContent = 'Done!'; setStatus('Your download is ready!');
+      } catch (error) { resetProgress(); setStatus(`${error.message} Please try again.`); }
+      finally { clearInterval(timer); download.disabled = false; load.disabled = false; }
+    }
+
+    load.addEventListener('click', loadVideo); download.addEventListener('click', downloadVideo); video.addEventListener('keydown', (event) => { if (event.key === 'Enter') loadVideo(); });
+  </script>
+</body>
+</html>
